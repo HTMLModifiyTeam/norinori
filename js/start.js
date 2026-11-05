@@ -1,32 +1,44 @@
-(function () {
-  "use strict";
-  window.zStartTap = function (waiting, start) {
-    var pointer = null;
-    function down(e) {
-      if (!waiting() || e.isPrimary === false || e.button > 0 || pointer !== null) return;
-      pointer = e.pointerId;
-      e.stopImmediatePropagation();
-    }
-    function up(e) {
-      if (pointer === null || pointer !== e.pointerId) return;
-      pointer = null;
-      if (!waiting()) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      start(e);
-    }
-    function cancel(e) { if (pointer === e.pointerId) pointer = null; }
-    function clear() { pointer = null; }
-    document.addEventListener("pointerdown", down, true);
-    document.addEventListener("pointerup", up, true);
-    document.addEventListener("pointercancel", cancel, true);
-    window.addEventListener("blur", clear);
-    return function () {
-      document.removeEventListener("pointerdown", down, true);
-      document.removeEventListener("pointerup", up, true);
-      document.removeEventListener("pointercancel", cancel, true);
-      window.removeEventListener("blur", clear);
-      clear();
-    };
+export function startTap(isWaiting, onStart, { target = document, signal } = {}) {
+  let activePointerId = null;
+
+  const reset = () => { activePointerId = null; };
+  const isTrackedPointer = event => activePointerId === event.pointerId;
+
+  const onPointerDown = event => {
+    const isPrimaryButton = event.button === 0;
+    if (activePointerId !== null || !event.isPrimary || !isPrimaryButton || !isWaiting()) return;
+    activePointerId = event.pointerId;
+    event.stopImmediatePropagation();
   };
-})();
+
+  const onPointerUp = event => {
+    if (!isTrackedPointer(event)) return;
+    reset();
+    if (!isWaiting()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    onStart(event);
+  };
+
+  const onPointerCancel = event => { if (isTrackedPointer(event)) reset(); };
+
+  const controller = new AbortController();
+  const listenerOptions = { capture: true, signal: controller.signal };
+
+  target.addEventListener("pointerdown", onPointerDown, listenerOptions);
+  target.addEventListener("pointerup", onPointerUp, listenerOptions);
+  target.addEventListener("pointercancel", onPointerCancel, listenerOptions);
+  window.addEventListener("blur", reset, { signal: controller.signal });
+
+  const stop = () => {
+    controller.abort();
+    reset();
+  };
+
+  if (signal) {
+    if (signal.aborted) stop();
+    else signal.addEventListener("abort", stop, { once: true });
+  }
+
+  return stop;
+}

@@ -1,84 +1,104 @@
-(function (global) {
-  'use strict';
-  var placements = new WeakMap();
-  function placeStyle(button, key, value, previous) {
-    if (previous[key] === value && previous[key + 'Applied'] === button.style[key]) return;
-    button.style[key] = value;
-    previous[key] = value;
-    previous[key + 'Applied'] = button.style[key];
+import { drawActionIcon } from "./icons.js";
+
+const BUTTON_WIDTH = 170;
+const BUTTON_HEIGHT = 54;
+const BUTTON_GAP = 16;
+const INK = "#000000";
+const LABELS = { retry: "retry" };
+const GUARDED_EVENTS = ["pointerdown", "pointerup", "pointercancel", "keydown", "keyup"];
+
+// Last style values written per button, so unchanged frames cost no DOM writes.
+const placements = new WeakMap();
+
+function setStyle(button, cache, key, value) {
+  const last = cache[key];
+  if (last && last.requested === value && last.applied === button.style[key]) return;
+  button.style[key] = value;
+  cache[key] = { requested: value, applied: button.style[key] };
+}
+
+function pillPath(ctx, x, y, w, h) {
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(x, y, w, h, h / 2);
+    return;
+  }
+  const r = h / 2;
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arc(x + w - r, y + r, r, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(x + r, y + h);
+  ctx.arc(x + r, y + r, r, Math.PI / 2, Math.PI * 1.5);
+  ctx.closePath();
+}
+
+export default new class actions {
+  constructor() {}
+
+  /** Attaches `action` to a DOM button and shields the page from its events. Returns a cleanup function. */
+  bind(button, action) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    const stop = event => event.stopPropagation();
+
+    for (const name of GUARDED_EVENTS) button.addEventListener(name, stop, { signal });
+    button.addEventListener("click", event => { event.stopPropagation(); if (!button.hidden && !button.disabled) action(); }, { signal });
+    return () => controller.abort();
   }
 
-  var actions = {
-    bind: function (button, action) {
-      function stop(e) { e.stopPropagation(); }
-      function click(e) {
-        e.stopPropagation();
-        if (!button.hidden && !button.disabled) action();
-      }
+  /** Lays out a horizontally centered row of buttons whose top edge is at `y`. */
+  row(width, y, ids = ["retry"]) {
+    const total = ids.length * BUTTON_WIDTH + (ids.length - 1) * BUTTON_GAP;
+    const startX = (width - total) / 2;
+    return ids.map((id, index) => ({ id, x: startX + index * (BUTTON_WIDTH + BUTTON_GAP), y, w: BUTTON_WIDTH, h: BUTTON_HEIGHT, label: LABELS[id] ?? id }));
+  }
 
-      var events = ['pointerdown', 'pointerup', 'pointercancel', 'keydown', 'keyup'];
-      events.forEach(function (name) { button.addEventListener(name, stop); });
-      button.addEventListener('click', click);
-      return function () {
-        events.forEach(function (name) { button.removeEventListener(name, stop); });
-        button.removeEventListener('click', click);
-      };
-    },
+  /** Returns the id of the button under (x, y), or null. */
+  hit(buttons, x, y) {
+    const match = buttons.find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+    return match?.id ?? null;
+  }
 
-    row: function (W, y, ids) {
-      ids = ids || ['retry'];
-      var h = 54, gap = 16, label = { retry: 'retry' };
-      var ws = ids.map(function (id) { return id === 170; });
-      if (ids.length > 2) ws = ws.map(function () { return 120; });
-      var total = ws.reduce(function (a, b) { return a + b; }, 0) + gap * (ws.length - 1), x = W / 2 - total / 2;
-      return ids.map(function (id, i) {
-        var b = { id: id, x: x, y: y, w: ws[i], h: h, label: label[id] || id };
-        x += ws[i] + gap;
-        return b;
-      });
-    },
+  drawButtons(ctx, buttons) {
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.font = "800 24px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
 
-    hit: function (buttons, x, y) {
-      for (var i = 0; i < buttons.length; i++) {
-        var b = buttons[i];
-        if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b.id;
-      }
-      return null;
-    },
+    for (const button of buttons) {
+      const cx = button.x + button.w / 2;
+      const cy = button.y + button.h / 2 + 1;
 
-    drawButtons: function (ctx, buttons) {
-      buttons.forEach(function (b) {
-        var r = b.h / 2;
-        ctx.save();
-        ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
-        ctx.beginPath();
-        ctx.moveTo(-b.w / 2 + r, -r); ctx.lineTo(b.w / 2 - r, -r);
-        ctx.arc(b.w / 2 - r, 0, r, -Math.PI / 2, Math.PI / 2);
-        ctx.lineTo(-b.w / 2 + r, r);
-        ctx.arc(-b.w / 2 + r, 0, r, Math.PI / 2, Math.PI * 1.5);
-        ctx.closePath();
-        ctx.fillStyle = '#fff'; ctx.fill();
-        ctx.lineWidth = 3; ctx.strokeStyle = '#16202e'; ctx.stroke();
-        ctx.fillStyle = '#16202e';
-        ctx.font = '800 24px sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        if (!global.zActionIcon || !global.zActionIcon(ctx, b.label, 0, 1, 30)) ctx.fillText(b.label, 0, 1);
+      pillPath(ctx, button.x, button.y, button.w, button.h);
+      ctx.fillStyle = "#fff";
+      ctx.fill();
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+
+      ctx.fillStyle = INK;
+      if (drawActionIcon) {
+        ctx.save(); // isolate whatever state the icon helper changes
+        drawActionIcon(ctx, button.label, cx, cy, 30);
         ctx.restore();
-      });
-    },
-    place: function (button, box, width, height, visible) {
-      if (button.hidden !== !visible) button.hidden = !visible;
-      if (!visible) return;
-
-      var left = box.x / width * 100 + '%', top = box.y / height * 100 + '%';
-      var w = box.w / width * 100 + '%', h = box.h / height * 100 + '%';
-      var previous = placements.get(button);
-      if (!previous) { previous = {}; placements.set(button, previous); }
-      placeStyle(button, 'left', left, previous);
-      placeStyle(button, 'top', top, previous);
-      placeStyle(button, 'width', w, previous);
-      placeStyle(button, 'height', h, previous);
+      } else ctx.fillText(button.label, cx, cy);
     }
-  };
-  global.zResultActions = actions;
-})(window);
+
+    ctx.restore();
+  }
+
+  /** Positions a DOM button over a canvas-space `box`, using percentages so it scales with the canvas. */
+  place(button, box, width, height, visible) {
+    const hidden = !visible;
+    if (button.hidden !== hidden) button.hidden = hidden;
+    if (hidden) return;
+
+    let cache = placements.get(button);
+    if (!cache) placements.set(button, (cache = {}));
+
+    setStyle(button, cache, "left", `${(box.x / width) * 100}%`);
+    setStyle(button, cache, "top", `${(box.y / height) * 100}%`);
+    setStyle(button, cache, "width", `${(box.w / width) * 100}%`);
+    setStyle(button, cache, "height", `${(box.h / height) * 100}%`);
+  }
+}
