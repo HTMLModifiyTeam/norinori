@@ -2,12 +2,13 @@ import { startTap } from "./start.js"
 import { zAudioResume } from "./audio.js"
 import gameView from "./view.js"
 import resultActions from "./result.js"
+import { CAM, SKY, PEOPLE, HAIRS, SHIRTS, ROBOT, BEAR } from "./data.js"
 
 var canvas = document.getElementById("c");
 var ctx = canvas.getContext("2d");
 var wrap = document.getElementById("wrap");
 
-var W = 540, H = 960;
+var W = 800, H = 0;
 function layout() {
   var view = gameView.measure(wrap, W);
   H = view.gameHeight;
@@ -54,35 +55,12 @@ var GOAL = 220;
 var TAPK = GOAL / 200;
 var R = 3000;
 var EC = R - 200;
-var fx, level, taps, swing, swingV, swingDir, happy, anger, endT, smileT, cheered, lastTap, members, notes, confetti;
+var fx, level, taps, swing, swingV, swingDir, happy, anger, endT, smileT, cheered, lastTap, members;
 var zoom, camY, camYBase, sky;
 
 var CY;
 function place() { CY = Math.round(H * 0.75); }
 
-/* カメラ（拡大率・見る高さ）を段ごとに */
-var CAM = [
-  { z: 2.2, y: -78 }, { z: 2.0, y: -82 }, { z: 1.7, y: -92 }, { z: 1.45, y: -102 },
-  { z: 1.25, y: -112 }, { z: 0.66, y: -120 }, { z: 0.4, y: -210 }, { z: 0.056, y: -210 }
-];
-var SKY = [
-  ["#8d8f94", "#b9babd"], ["#7fb0d8", "#cfe4f0"], ["#5fc0ff", "#ffe7a6"], ["#ff8fc1", "#ffd27a"],
-  ["#ff6fae", "#ffb25e"], ["#6d4cf0", "#ff6fb5"], ["#35237e", "#ff7a59"], ["#04051a", "#121640"]
-];
-
-/* ---- 仲間 ---- */
-var PEOPLE = [
-  { skin: "#f1c39b", shirt: "#ff4f6d", pants: "#2d3a64", hair: "#3a2416", long: true },
-  { skin: "#b9774f", shirt: "#ffd23f", pants: "#1f6f5c", hair: "#1a1410" },
-  { skin: "#f5d0b0", shirt: "#4fb3ff", pants: "#5b3b8c", hair: "#c8732f", long: true },
-  { skin: "#8a5534", shirt: "#7ee081", pants: "#33343c", hair: "#111", afro: true },
-  { skin: "#f0bf94", shirt: "#c56bff", pants: "#283d6b", hair: "#e9e2d6" },
-  { skin: "#d9a074", shirt: "#ff9a3c", pants: "#3a2a52", hair: "#2b1a12", long: true },
-  { skin: "#f6cfa8", shirt: "#3ce0c8", pants: "#40285e", hair: "#6b3d1f" }
-];
-/* 顔と髪型のばらつき。毎回まぜて人の見た目を増やす */
-var HAIRS = ["#2a1a10", "#1a1410", "#6b3d1f", "#c8732f", "#e9e2d6", "#e8c34a", "#8a2b2b", "#3a2416"];
-var SHIRTS = ["#ff4f6d", "#ffd23f", "#4fb3ff", "#7ee081", "#c56bff", "#ff9a3c", "#3ce0c8", "#ffffff", "#ff7ab8", "#2d6cdf"];
 /* 顔のパーツは全員男と同じ。髪型・髪の色・服の色だけ変える */
 function vary(base) {
   var c = {};
@@ -92,8 +70,7 @@ function vary(base) {
   if (!c.long && !c.afro) c.hs = pick(["", "", "pony", "bun", "spiky", "bald", "cap"]);
   return c;
 }
-var ROBOT = { skin: "#b8c0cc", shirt: "#9aa3b0", pants: "#6b7280", hair: "#6b7280", robot: true };
-var BEAR = { skin: "#9a6236", shirt: "#9a6236", pants: "#9a6236", hair: "#9a6236", bear: true };
+
 function baseMembers() {
   var m = [
     { lv: 2, kind: "human", x: -98, z: 1, c: vary(PEOPLE[0]) },
@@ -193,7 +170,7 @@ function newRound() {
   state = S.PLAY;
   T = 0;
   level = 0; taps = 0; swing = 0; swingV = 0; swingDir = 1; happy = 0; anger = 0; endT = -1; smileT = -1; cheered = false; lastTap = -9;
-  members = baseMembers(); notes = []; confetti = []; fx = [];
+  members = baseMembers(); fx = [];
   zoom = CAM[0].z; camYBase = CAM[0].y; camY = camYBase;
   sky = [hex(SKY[0][0]), hex(SKY[0][1])];
   stopMusic();
@@ -299,29 +276,41 @@ function cheer() {
   if (!AC || !NOISE) return;
   var n = AC.currentTime + 0.02, out = AC.createGain();
   out.gain.value = 0.9; out.connect(AC.destination);          /* 音楽のフェードとは別に鳴らす */
+
   for (var k = 0; k < 3; k++) {
     var src = AC.createBufferSource(); src.buffer = NOISE; src.loop = true;
-    var f = AC.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = [700, 1300, 2400][k]; f.Q.value = 1.2;
+    var f = AC.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = [250, 520, 1000][k]; f.Q.value = 1.5;
     var g = AC.createGain();
-    g.gain.setValueAtTime(0.0001, n); g.gain.exponentialRampToValueAtTime(0.35, n + 0.35);
-    g.gain.setValueAtTime(0.35, n + 1.4); g.gain.exponentialRampToValueAtTime(0.0001, n + 3.6);
+    g.gain.setValueAtTime(0.0001, n); g.gain.exponentialRampToValueAtTime(0.4, n + 0.15);
+    g.gain.setValueAtTime(0.4, n + 1.6); g.gain.exponentialRampToValueAtTime(0.0001, n + 3.6);
     src.connect(f); f.connect(g); g.connect(out);
     src.start(n, Math.random()); src.stop(n + 3.7);
   }
-  for (var v = 0; v < 9; v++) {
-    var t0 = n + Math.random() * 0.8, base = 220 + Math.random() * 260, d = 0.6 + Math.random() * 0.9;
-    var o = AC.createOscillator(), fo = AC.createBiquadFilter(), go = AC.createGain();
-    o.type = "sawtooth"; o.frequency.setValueAtTime(base, t0); o.frequency.linearRampToValueAtTime(base * 1.35, t0 + d * 0.4);
-    o.frequency.linearRampToValueAtTime(base * 0.9, t0 + d);
-    fo.type = "bandpass"; fo.frequency.value = 900 + Math.random() * 500; fo.Q.value = 3;
-    go.gain.setValueAtTime(0.0001, t0); go.gain.exponentialRampToValueAtTime(0.07, t0 + 0.08); go.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
-    o.connect(fo); fo.connect(go); go.connect(out); o.start(t0); o.stop(t0 + d + 0.05);
+
+  var curve = new Float32Array(256);
+  for (var c = 0; c < 256; c++) { var x = c / 128 - 1; curve[c] = Math.tanh(x * 4); }
+
+  for (var v = 0; v < 10; v++) {
+    var t0 = n + Math.random() * 0.8, base = 110 + Math.random() * 90, d = 0.9 + Math.random() * 1.1;
+    var o = AC.createOscillator(), fo = AC.createBiquadFilter(), sh = AC.createWaveShaper(), go = AC.createGain(), am = AC.createGain(), lfo = AC.createOscillator(), lg = AC.createGain();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(base * 1.1, t0);
+    o.frequency.linearRampToValueAtTime(base * 0.7, t0 + d);            /* 下がり調子 = ブー */
+    fo.type = "bandpass"; fo.frequency.value = 300 + Math.random() * 150; fo.Q.value = 4;   /* 「ウー」の母音 */
+    sh.curve = curve;
+    lfo.type = "square"; lfo.frequency.value = 25 + Math.random() * 20;  /* 喉のガラガラ感 */
+    lg.gain.value = 0.5; am.gain.value = 0.5;
+    lfo.connect(lg); lg.connect(am.gain);
+    go.gain.setValueAtTime(0.0001, t0); go.gain.exponentialRampToValueAtTime(0.1, t0 + 0.12); go.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    o.connect(fo); fo.connect(sh); sh.connect(am); am.connect(go); go.connect(out);
+    o.start(t0); o.stop(t0 + d + 0.05); lfo.start(t0); lfo.stop(t0 + d + 0.05);
   }
-  for (var w = 0; w < 2; w++) {                                 /* 指笛 */
-    var tw = n + 0.3 + w * 0.7, ow = AC.createOscillator(), gw = AC.createGain();
-    ow.type = "sine"; ow.frequency.setValueAtTime(1800, tw); ow.frequency.exponentialRampToValueAtTime(2900, tw + 0.25); ow.frequency.exponentialRampToValueAtTime(2200, tw + 0.5);
-    gw.gain.setValueAtTime(0.0001, tw); gw.gain.exponentialRampToValueAtTime(0.06, tw + 0.05); gw.gain.exponentialRampToValueAtTime(0.0001, tw + 0.55);
-    ow.connect(gw); gw.connect(out); ow.start(tw); ow.stop(tw + 0.6);
+
+  for (var w = 0; w < 2; w++) {
+    var tw = n + 0.3 + w * 0.8, ow = AC.createOscillator(), gw = AC.createGain();
+    ow.type = "sine"; ow.frequency.setValueAtTime(2800, tw); ow.frequency.exponentialRampToValueAtTime(1300, tw + 0.6);
+    gw.gain.setValueAtTime(0.0001, tw); gw.gain.exponentialRampToValueAtTime(0.06, tw + 0.05); gw.gain.exponentialRampToValueAtTime(0.0001, tw + 0.65);
+    ow.connect(gw); gw.connect(out); ow.start(tw); ow.stop(tw + 0.7);
   }
 }
 /* 大きいものが生えたときの低い音 */
@@ -344,7 +333,6 @@ function setLevel(L) {
   if (L >= 1) startMusic();
   for (var i = 0; i < members.length; i++) if (members[i].lv === L) { arrive(members[i]); members[i].t0 += Math.random() * 0.35; }
   levelUpSound();
-  if (L >= 7) burst(60);
 }
 /* 出てくる。人と動物は画面の外から歩いてきて、大きいものはその場で生える */
 function arrive(m) {
@@ -354,19 +342,14 @@ function arrive(m) {
   m.fromX = (m.x < 0 ? -1 : 1) * Math.max(hw, Math.abs(m.x) + 150);
   m.wd = Math.min(1.8, Math.abs(m.fromX - m.x) / 320);
 }
-function burst(n) {
-  for (var i = 0; i < n; i++) confetti.push({
-    x: Math.random() * W, y: -20 - Math.random() * H * 0.5, vx: (Math.random() - 0.5) * 60, vy: 120 + Math.random() * 160,
-    r: Math.random() * 6, vr: (Math.random() - 0.5) * 8, c: "hsl(" + ((Math.random() * 360) | 0) + ",90%,62%)"
-  });
-}
+
 function update(dt) {
   if (state === S.INTRO) { T += dt; return; }
   if (state !== S.PLAY && state !== S.RESULT) return;
   T += dt;
   pumpMusic();
   /* 曲が鳴り終わったら笑顔・歓声・紙吹雪 */
-  if (smileT >= 0 && !cheered && T >= smileT) { cheered = true; burst(120); cheer(); }
+  if (smileT >= 0 && !cheered && T >= smileT) { cheered = true; cheer(); }
   /* 男の腰：タップの向きへばねで寄る */
   var acc = ((cheered ? 0 : swingDir) - swing) * 260 - swingV * 16;
   swingV += acc * dt; swing += swingV * dt;
@@ -394,22 +377,11 @@ function update(dt) {
     var tg = hex(SKY[of > 0 && earthK() < 0.5 ? 2 : level][j]);
     for (var q = 0; q < 3; q++) sky[j][q] += (tg[q] - sky[j][q]) * Math.min(1, dt * 1.5);
   }
-  for (var i = notes.length - 1; i >= 0; i--) {
-    var o = notes[i]; o.t += dt; o.x += o.vx * dt; o.y += o.vy * dt;
-    if (o.t > 1.4) notes.splice(i, 1);
-  }
-  if (cheered && T - smileT < 3.5 && Math.random() < dt * 14) burst(3);
-  for (i = fx.length - 1; i >= 0; i--) {
+  for (let i = fx.length - 1; i >= 0; i--) {
     var e = fx[i]; e.t += dt; e.x += e.vx * dt; e.y += e.vy * dt; e.vx *= 1 - dt * 3; e.vy *= 1 - dt * 3;
     if (e.t > e.life) fx.splice(i, 1);
   }
-  for (i = confetti.length - 1; i >= 0; i--) {
-    var p = confetti[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt;
-    if (p.y > H + 20) confetti.splice(i, 1);
-  }
-  if (state === S.PLAY && cheered && T - smileT > 3.5) {
-    state = S.RESULT;
-  }
+  if (state === S.PLAY && cheered && T - smileT > 3.5) state = S.RESULT;
 }
 /* 締めくくりの進み（0〜1）。200タップから寄りはじめ、終わったあとも少し寄る */
 function outroF() {
@@ -458,23 +430,13 @@ function down(x, y) {
   if (taps >= GOAL && endT < 0) { endT = T; smileT = T + endMusic() + 0.9; }
   lastTap = T;
   for (i = 0; i < members.length; i++) if (members[i].at && members[i].t0 == null && taps >= members[i].at) { arrive(members[i]); if (members[i].sc > 2 || (members[i].h || 0) > 300) bigSound(Math.max(members[i].sc, (members[i].h || 0) / 150)); }
-  /* 音符を飛ばす（男の頭のあたりから） */
-  var p = toScreen(0, -120);
-  notes.push({
-    x: p.x + (Math.random() - 0.5) * 30, y: p.y, vx: (Math.random() - 0.5) * 120, vy: -110 - Math.random() * 80, t: 0,
-    c: "hsl(" + ((Math.random() * 360) | 0) + ",85%,60%)", big: Math.random() < 0.5
-  });
 }
-function up() { }
 
-function atCanvas(e) { return gameView.point(canvas, e, W, H); }
 wrap.addEventListener("pointerdown", function (e) {
   e.preventDefault();
-  var p = atCanvas(e); down(p.x, p.y);
+  const p = gameView.point(canvas, e, W, H);
+  down(p.x, p.y);
 });
-wrap.addEventListener("pointerup", function (e) { e.preventDefault(); up(); });
-wrap.addEventListener("pointercancel", function () { up(); });
-window.addEventListener("blur", function () { up(); });
 
 window.addEventListener("keydown", function (e) {
   var esc = e.key === "Escape";
@@ -486,7 +448,7 @@ window.addEventListener("keydown", function (e) {
   down();
 });
 window.addEventListener("keyup", function (e) {
-  if (e.code === "Space" || e.key === " " || e.key === "Enter") { if (state === S.INTRO) startButton.click(); else up(); }
+  if ((e.code === "Space" || e.key === " " || e.key === "Enter") && state === S.INTRO) startButton.click();
 });
 
 /* ============ 描画 ============ */
@@ -641,7 +603,7 @@ function drawQuad(t, s, b) {
   }[t];
   var by = -b * 4, bx = s * 5;
   var y = -P.h + by;
-  var legLen = P.h - P.bh * 0.3;
+
   for (var i = 0; i < 4; i++) {
     var fx = (i < 2 ? 1 : -1) * P.bw * 0.6 + (i % 2 ? 4 : -4), back = i >= 2;
     var top = fx + (back ? s * 9 : bx * 0.4);
@@ -923,14 +885,6 @@ function drawBeams() {
   }
   ctx.restore();
 }
-function drawNote(o) {
-  var a = Math.max(0, 1 - o.t / 1.4), sc = o.big ? 1.2 : 0.9;
-  ctx.save(); ctx.globalAlpha = a; ctx.translate(o.x, o.y); ctx.scale(sc, sc); ctx.rotate(Math.sin(o.t * 6) * 0.3);
-  ctx.fillStyle = o.c; ctx.strokeStyle = o.c; ctx.lineWidth = 3.5;
-  ell(-6, 8, 7, 5.5, -0.4); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(0, 7); ctx.lineTo(0, -16); ctx.quadraticCurveTo(8, -10, 11, -2); ctx.stroke();
-  ctx.restore();
-}
 
 function draw() {
   var k = earthK(), bt = nowBeat();
@@ -950,7 +904,6 @@ function draw() {
   }
   drawEarth(k);
 
-  var music = level >= 1;
   /* みんな男の腰振り（タップ）に合わせて動く */
   var crowdS = Math.max(-1.3, Math.min(1.3, swing));
   var pulse = Math.exp(-Math.max(0, T - lastTap) * 7);
@@ -1003,7 +956,6 @@ function draw() {
   ctx.restore();
 
   drawConflictMood();
-  notes.forEach(drawNote);
   fx.forEach(function (e) {
     var a = Math.max(0, 1 - e.t / e.life);
     ctx.save(); ctx.globalAlpha = a;
@@ -1025,10 +977,7 @@ function draw() {
     }
     ctx.restore();
   });
-  confetti.forEach(function (p) {
-    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-5, -3, 10, 6); ctx.restore();
-  });
-  if (state === S.RESULT) drawResult();
+  if (state === S.RESULT) resultActions.drawButtons(ctx, resultButtons());
 }
 
 function drawConflictMood() {
@@ -1041,8 +990,6 @@ function drawConflictMood() {
   ctx.textAlign = "center"; ctx.textBaseline = "top";
   ctx.font = "900 26px sans-serif";
   ctx.fillStyle = "#fff"; ctx.strokeStyle = "#8f1728"; ctx.lineWidth = 6;
-  const chant = taps < 110 ? "EVERYONE IS ANGRY" : taps < 160 ? "THE BIG BRAWL" : "WAR!";
-  ctx.strokeText(chant, W / 2, 30); ctx.fillText(chant, W / 2, 30);
   if (battle > 0) {
     for (let i = 0; i < 5; i++) {
       const x = 55 + ((i * 113 + Math.floor(T * 30) * 17) % (W - 110));
@@ -1069,19 +1016,16 @@ function resultButtons() {
 function hitButton(x, y) {
   return resultActions.hit(resultButtons(), x, y);
 }
-/* 結果は暗くせず、笑顔の男の下にボタンだけ */
-function drawResult() {
-  resultActions.drawButtons(ctx, resultButtons());
-}
 
 /* ============ ループ ============ */
 var startButton = document.getElementById('start');
-startTap(function () { return state === S.INTRO; }, function () { startButton.click(); });
+startTap(() => state === S.INTRO, () => startButton.click());
 
 ['pointerdown', 'pointerup'].forEach(function (name) { startButton.addEventListener(name, function (e) { e.stopPropagation(); }); });
 startButton.addEventListener('click', function (e) { e.stopPropagation(); audioOn(); resumeAudio(); newRound(); });
 newRound(); state = S.INTRO; startButton.hidden = false;
 layout();
+
 var last = performance.now();
 var stepAcc = 0;
 function loop(now) {

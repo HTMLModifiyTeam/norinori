@@ -8,7 +8,7 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
  * Measures the host element and derives a logical game height that matches
  * its aspect ratio, given the fixed logical `designWidth`.
  */
-export function measure(wrap, designWidth) {
+function measure(wrap, designWidth) {
   const host = wrap.parentElement;
   const width = host?.clientWidth || window.innerWidth;
   const height = host?.clientHeight || window.innerHeight;
@@ -22,7 +22,7 @@ export function measure(wrap, designWidth) {
  * logical `width` x `height` aspect ratio, and sets up the context transform
  * so drawing code can keep using logical coordinates.
  */
-export function fit(canvas, wrap, ctx, width, height, view) {
+function fit(canvas, wrap, ctx, width, height, view) {
   const scale = Math.min(view.width / width, view.height / height);
   const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
 
@@ -49,7 +49,7 @@ export function fit(canvas, wrap, ctx, width, height, view) {
 }
 
 /** Converts a pointer event's client coordinates to logical canvas coordinates. */
-export function point(canvas, event, width, height) {
+function point(canvas, event, width, height) {
   const rect = canvas.getBoundingClientRect();
   return {
     x: ((event.clientX - rect.left) / rect.width) * width,

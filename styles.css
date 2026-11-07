@@ -23,11 +23,6 @@ html, body {
   touch-action: none;
 }
 
-canvas {
-  display: block;
-  background: #8d8f94;
-}
-
 #stage, #wrap, canvas {
   -webkit-user-select: none;
   user-select: none;
